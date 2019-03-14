@@ -123,8 +123,10 @@ def compute_cost(AL, Y):
     :param Y: the labels vector (i.e. the ground truth)
     :return: cost – the cross-entropy cost
     """
-
-    cost = (-1 / Y.shape[1]) * np.sum((Y * np.log(AL)) + (1 - Y * np.log(1 - AL)))
+    AL = np.amax(AL, axis=0)
+    left = Y * np.log(AL)
+    right = (1 - Y) * np.log(1 - AL)
+    cost = (-1 / Y.shape[1]) * np.sum(left+right)
     return np.squeeze(cost)
 
 
@@ -161,8 +163,8 @@ def Linear_backward(dZ, cache):
     A_prev, W, b = cache
     m = A_prev.shape[0]
 
-    dW = 1 / m * np.dot(dZ, A_prev.T)
-    db = 1 / m * np.squeeze(np.sum(dZ))
+    dW = (1 / m) * np.dot(dZ, A_prev.T)
+    db = (1 / m) * np.squeeze(np.sum(dZ))
     dA_prev = np.dot(W.T, dZ)
 
     return dA_prev, dW, db
@@ -198,7 +200,7 @@ def relu_backward(dA, activation_cache):
     :param activation_cache: contains Z (stored during the forward propagation)
     :return: dZ – gradient of the cost with respect to Z
     """
-    return dA if activation_cache > 1 else 0
+    return np.where(activation_cache <= 0, 0, dA)
 
 
 def sigmoid_backward(dA, activation_cache):
@@ -209,8 +211,8 @@ def sigmoid_backward(dA, activation_cache):
     :param activation_cache: contains Z (stored during the forward propagation)
     :return: dZ – gradient of the cost with respect to Z
     """
-    # return dA * (activation_cache * (1 - activation_cache))
-    return dA * (sigmoid(activation_cache)[0] * sigmoid(1 - activation_cache)[0])
+    sig_z = sigmoid(activation_cache)[1]
+    return dA * (sig_z * (1 - sig_z))
 
 
 def L_model_backward(AL, Y, caches):
@@ -231,6 +233,8 @@ def L_model_backward(AL, Y, caches):
     Y = Y.reshape(AL.shape)
     dAL = - (np.divide(Y, AL) - np.divide(1 - Y, 1 - AL))
 
+
+
     cur_cache = caches[-1]
     cur_activation_cache = cur_cache['activation_cache']
     cur_linear_cache = cur_cache['linear_cache']
@@ -242,7 +246,7 @@ def L_model_backward(AL, Y, caches):
         cur_activation_cache = cur_cache['activation_cache']
         cur_linear_cache = cur_cache['linear_cache']
         Grads['dA' + str(l + 1)], Grads['dW' + str(l + 1)], Grads['db' + str(l + 1)] = Linear_backward(
-            relu_backward(dAL, cur_activation_cache), cur_linear_cache)
+            relu_backward(Grads['dA' + str(l + 2)], cur_activation_cache), cur_linear_cache)
 
     return Grads
 
@@ -262,6 +266,7 @@ def Update_parameters(parameters, grads, learning_rate=0.001):
     return new_parameters
 
 
+# TODO: we switched num iterations with batchs
 def L_layer_model(X, Y, layer_dims, learning_rate=0.009, num_iterations=300, batch_size=32, use_batchnorm=False):
     """
     Implements a L-layer neural network. All layers but the last should have the ReLU
@@ -282,16 +287,20 @@ def L_layer_model(X, Y, layer_dims, learning_rate=0.009, num_iterations=300, bat
     """
     costs = []
     parameters = initialize_parameters(layer_dims)
-    minibatches = mini_batches_split(X, Y, batch_size)
-    for minibatch in minibatches:
-        X, Y = minibatch
-        for i in range(num_iterations):
-            AL, caches = L_model_forward(X, parameters, use_batchnorm)
-            grads = L_model_backward(AL, Y, caches)
+    for i in range(num_iterations):
+        minibatches = mini_batches_split(X, Y, batch_size)
+        for minibatch in minibatches:
+            x, y = minibatch
+            AL, caches = L_model_forward(x, parameters, use_batchnorm)
+            grads = L_model_backward(AL, y, caches)
             parameters = Update_parameters(parameters, grads, learning_rate)
-            if i % 100 == 0:
-                print(f"Cost after iteration {i}: {cost}")
-                costs.append(compute_cost(AL, Y))
+
+            # for key, value in parameters.items():
+            #     print(np.isnan(value).sum())
+        if i % 100 == 0:
+            cost = compute_cost(AL, y)
+            costs.append(cost)
+            print(f"Cost after iteration {i}: {cost}")
 
     return parameters, costs
 
@@ -308,7 +317,13 @@ def Predict(X, Y, parameters):
                 percentage of the samples for which the correct label receives over 50% of the
                 confidence score). Use the softmax function to normalize the output values.
     """
-    pass
+    AL, _ = L_model_forward(X, parameters)
+    soft_AL = softmax(AL)
+    preds = np.argmax(soft_AL, axis=0)
+    Y = np.argmax(Y, axis=0)
+    acc = (preds - Y == 0).sum()
+    acc /= X.shape[1]
+    return acc
 
 
 def softmax(X):
@@ -317,7 +332,10 @@ def softmax(X):
     :param X: prediction values
     :return: normalize prediction values
     """
-    return np.exp(X) / np.sum(np.exp(X), axis=0)
+    nominator = np.exp(X)
+    denominator = np.sum(np.exp(X), axis=0)
+    denominator = np.tile(denominator, (10, 1))
+    return nominator / denominator
 
 
 def mini_batches_split(X, Y, mini_batch_size=64):
@@ -346,7 +364,7 @@ def mini_batches_split(X, Y, mini_batch_size=64):
     # Handling the end case (last mini-batch < mini_batch_size)
     if m % mini_batch_size != 0:
         mini_batch_X = shuffled_X[:, num_complete_minibatches * mini_batch_size:]
-        mini_batch_Y = shuffled_Y[:, num_complete_minibatches * mini_batch_size]
+        mini_batch_Y = shuffled_Y[:, num_complete_minibatches * mini_batch_size:]
         mini_batch = (mini_batch_X, mini_batch_Y)
         mini_batches.append(mini_batch)
 
