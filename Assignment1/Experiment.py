@@ -7,6 +7,18 @@ def load_data():
     x_test = np.load('x_test.npy')
     y_train = np.load('y_train.npy')
     y_test = np.load('y_test.npy')
+
+    y_new = np.zeros((10, y_train.shape[0]))
+    cnt = 0
+    for label in y_train:
+        y_new[label][cnt] = 1
+        cnt += 1
+
+    y_train = y_new
+    # normalize
+    x_train = x_train.astype(float) / 255.
+    x_test = x_test.astype(float) / 255.
+
     return (x_train, y_train), (x_test, y_test)
 
 
@@ -37,16 +49,15 @@ def run_Experiment(x_train, y_train, layers_dim, x_val_data, y_val_data, x_test,
 split_prob = 0.8
 (x_train, y_train), (x_test, y_test) = load_data()
 
-# normalize
-x_train = x_train.astype(float) / 255.
-x_test = x_test.astype(float) / 255.
+
+
 # Split the training data for train-validation set
 validation_split = np.random.rand(len(x_train)) < split_prob
 
 x_train_data = x_train[validation_split]
 x_val_data = x_train[~validation_split]
-y_train_data = y_train[validation_split]
-y_val_data = y_train[~validation_split]
+y_train_data = y_train[:,validation_split]
+y_val_data = y_train[:,~validation_split]
 
 x_train_data = x_train_data.reshape((x_train_data.shape[0],784))
 layers_dims = [x_train_data.shape[1], 20, 7, 5, 10]
