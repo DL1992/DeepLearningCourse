@@ -38,7 +38,7 @@ def run_Experiment(x_train, y_train, layers_dim, x_val_data, y_val_data, x_test,
     train_flag = True
     while (train_flag):
         num_of_epoches += 1
-        params, costs = L_layer_model(x_train.T, y_train, layers_dim, learning_rate=0.1, num_iterations=1000, batch_size=37000, use_batchnorm=use_batchnorm)
+        params, costs = L_layer_model(x_train.T, y_train, layers_dim, learning_rate=0.009, num_iterations=170, batch_size=32, use_batchnorm=use_batchnorm)
         costs_per_epoch.append(costs)
         acc = Predict(x_val_data.T, y_val_data, params)
         if acc < curr_acc:
@@ -46,11 +46,12 @@ def run_Experiment(x_train, y_train, layers_dim, x_val_data, y_val_data, x_test,
         else:
             curr_acc = acc
             no_improve_count = 0
-        if no_improve_count == 10:
+        if no_improve_count == 3:
             train_flag = False
     val_acc = acc
     train_acc = Predict(x_train.T, y_train, params)
     test_acc = Predict(x_test.T, y_test, params)
+
     return num_of_epoches, val_acc, train_acc, test_acc, batch_size, costs_per_epoch
 
 
@@ -73,12 +74,28 @@ x_test = x_test.reshape((x_test.shape[0], 784))
 layers_dims = [x_train_data.shape[1], 20, 7, 5, 10]
 batch_size = 64
 
-num_of_epochs, val_acc, train_acc, test_acc, batch_size_new, costs_per_epoch = run_Experiment(x_train_data, y_train_data,
-                                                                                               layers_dims, x_val_data,
-                                                                                               y_val_data, x_test,
-                                                                                               y_test, batch_size,
-                                                                                               False)
+# num_of_epochs, val_acc, train_acc, test_acc, batch_size_new, costs_per_epoch = run_Experiment(x_train_data, y_train_data,
+#                                                                                                layers_dims, x_val_data,
+#                                                                                                y_val_data, x_test,
+#                                                                                                y_test, batch_size,
+#                                                                                                False)
+
+
 # num_of_epoches, val_acc, train_acc, test_acc, batch_size_new, costs_per_epoch = run_Experiment(x_train, y_train,
 #                                                                                                layers_dims, x_val_data,
 #                                                                                                y_val_data, x_test,
 #                                                                                                y_test, batch_size, True)
+
+
+params, costs = L_layer_model(x_train_data.T,
+                              y_train_data,
+                              layers_dims,
+                              learning_rate=0.09,
+                              num_iterations=200,
+                              batch_size=32,
+                              use_batchnorm=False)
+
+train_acc = Predict(x_train_data.T, y_train_data, params) * 100
+test_acc = Predict(x_test.T, y_test, params) * 100
+
+print('Train Accuracy {}%\nTest Accuracy: {}%'.format(train_acc, test_acc))

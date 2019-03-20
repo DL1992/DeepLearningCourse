@@ -76,8 +76,7 @@ def linear_activation_forward(A_prev, W, B, activation='relu'):
     else:
         raise ValueError('No such activation')
 
-    cache = {'activation_cache': activation_cache,
-             'linear_cache': linear_cache}
+    cache = (linear_cache, activation_cache)
 
     return A, cache
 
@@ -97,18 +96,23 @@ def L_model_forward(X, parameters, use_batchnorm=False):
     """
     caches = []
     A = X
-    for l in range(1, len(parameters) // 2):
+    n_layers = len(parameters) // 2
+    for l in range(1, n_layers):
         A_prev = A
-        A, cache = linear_activation_forward(A_prev, parameters['W' + str(l)], parameters['b' + str(l)])
+        A, cache = linear_activation_forward(A_prev,
+                                             parameters['W' + str(l)],
+                                             parameters['b' + str(l)],
+                                             activation='relu')
         if use_batchnorm:
+            # TODO : check what to do about batch_norm
             apply_batchnorm(A)
         caches.append(cache)
-    AL, cache = linear_activation_forward(A, parameters['W' + str(len(parameters) // 2)],
-                                          parameters['b' + str(len(parameters) // 2)], activation='sigmoid')
 
-    if use_batchnorm:
-        # TODO : check what to do about batch_norm
-        apply_batchnorm(AL)
+    AL, cache = linear_activation_forward(A,
+                                          parameters['W' + str(n_layers)],
+                                          parameters['b' + str(n_layers)],
+                                          activation='sigmoid')
+
     caches.append(cache)
 
     return AL, caches
@@ -123,11 +127,11 @@ def compute_cost(AL, Y):
     :param Y: the labels vector (i.e. the ground truth)
     :return: cost – the cross-entropy cost
     """
-    AL = np.amax(AL, axis=0)
-    left = Y * np.log(AL)
-    right = (1 - Y) * np.log(1 - AL)
-    cost = (-1 / Y.shape[1]) * np.sum(left+right)
-    return np.squeeze(cost)
+
+    m = Y.shape[1]
+    cost = np.sum(Y * np.log(AL))
+    cost /= -m
+    return cost
 
 
 def apply_batchnorm(A):
@@ -161,10 +165,10 @@ def Linear_backward(dZ, cache):
             db -- Gradient of the cost with respect to b (current layer l), same shape as b
     """
     A_prev, W, b = cache
-    m = A_prev.shape[0]
+    m = A_prev.shape[1]
 
-    dW = (1 / m) * np.dot(dZ, A_prev.T)
-    db = (1 / m) * np.squeeze(np.sum(dZ))
+    dW = (1. / m) * np.dot(dZ, A_prev.T)
+    db = (1. / m) * np.sum(dZ, axis=1, keepdims=True)
     dA_prev = np.dot(W.T, dZ)
 
     return dA_prev, dW, db
@@ -211,7 +215,7 @@ def sigmoid_backward(dA, activation_cache):
     :param activation_cache: contains Z (stored during the forward propagation)
     :return: dZ – gradient of the cost with respect to Z
     """
-    sig_z = sigmoid(activation_cache)[1]
+    sig_z = 1 / (1 + np.exp(-activation_cache))
     return dA * (sig_z * (1 - sig_z))
 
 
@@ -227,27 +231,24 @@ def L_model_backward(AL, Y, caches):
                     grads["dW" + str(l)] = ...
                     grads["db" + str(l)] = ...
     """
+
     Grads = {}
     L = len(caches)
-    # m = AL.shape[1]
     Y = Y.reshape(AL.shape)
-    dAL = - (np.divide(Y, AL) - np.divide(1 - Y, 1 - AL))
 
+    dAL = - (np.divide(Y, AL + 1e-13) - np.divide(1 - Y, 1 - AL + 1e-13))
 
-
-    cur_cache = caches[-1]
-    cur_activation_cache = cur_cache['activation_cache']
-    cur_linear_cache = cur_cache['linear_cache']
-    Grads['dA' + str(L)], Grads['dW' + str(L)], Grads['db' + str(L)] = Linear_backward(
-        sigmoid_backward(dAL, cur_activation_cache), cur_linear_cache)
+    cache = caches[-1]
+    Grads['dA' + str(L)], Grads['dW' + str(L)], Grads['db' + str(L)] = linear_activation_backward(dAL,
+                                                                                                  cache,
+                                                                                                  activation='sigmoid')
 
     for l in reversed(range(L - 1)):
-        cur_cache = caches[l]
-        cur_activation_cache = cur_cache['activation_cache']
-        cur_linear_cache = cur_cache['linear_cache']
-        Grads['dA' + str(l + 1)], Grads['dW' + str(l + 1)], Grads['db' + str(l + 1)] = Linear_backward(
-            relu_backward(Grads['dA' + str(l + 2)], cur_activation_cache), cur_linear_cache)
-
+        cache = caches[l]
+        dAL = Grads['dA' + str(l + 2)]
+        Grads['dA' + str(l + 1)], Grads['dW' + str(l + 1)], Grads['db' + str(l + 1)] = linear_activation_backward(dAL,
+                                                                                                                  cache,
+                                                                                                                  activation='relu')
     return Grads
 
 
@@ -261,12 +262,10 @@ def Update_parameters(parameters, grads, learning_rate=0.001):
     :return: parameters – the updated values of the parameters object provided as input
     """
 
-    new_parameters = {key: value - learning_rate * grads['d' + key] for (key, value) in parameters.items() if
-                      'd' not in key}
+    new_parameters = {key: value - learning_rate * grads['d' + key] for (key, value) in parameters.items()}
     return new_parameters
 
 
-# TODO: we switched num iterations with batchs
 def L_layer_model(X, Y, layer_dims, learning_rate=0.009, num_iterations=300, batch_size=32, use_batchnorm=False):
     """
     Implements a L-layer neural network. All layers but the last should have the ReLU
@@ -295,12 +294,11 @@ def L_layer_model(X, Y, layer_dims, learning_rate=0.009, num_iterations=300, bat
             grads = L_model_backward(AL, y, caches)
             parameters = Update_parameters(parameters, grads, learning_rate)
 
-            # for key, value in parameters.items():
-            #     print(np.isnan(value).sum())
-        if i % 100 == 0:
+        if i % 10 == 0:
             cost = compute_cost(AL, y)
+            acc = Predict(x, y, parameters) * 100
             costs.append(cost)
-            print(f"Cost after iteration {i}: {cost}")
+            print(f"Cost after iteration {i}: {cost}, {acc}%")
 
     return parameters, costs
 
@@ -325,17 +323,18 @@ def Predict(X, Y, parameters):
     acc /= X.shape[1]
     return acc
 
-
 def softmax(X):
     """
 
     :param X: prediction values
     :return: normalize prediction values
     """
-    nominator = np.exp(X)
-    denominator = np.sum(np.exp(X), axis=0)
-    denominator = np.tile(denominator, (10, 1))
-    return nominator / denominator
+    z = X.T
+    exps = np.exp(z - np.max(z))
+    A = exps / np.sum(exps)
+    A = A.T
+
+    return A
 
 
 def mini_batches_split(X, Y, mini_batch_size=64):
