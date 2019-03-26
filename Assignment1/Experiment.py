@@ -61,17 +61,17 @@ split_prob = 0.8
 
 
 # Split the training data for train-validation set
-validation_split = np.random.rand(len(x_train)) < split_prob
-
-x_train_data = x_train[validation_split]
-x_val_data = x_train[~validation_split]
-y_train_data = y_train[:, validation_split]
-y_val_data = y_train[:, ~validation_split]
-
-x_train_data = x_train_data.reshape((x_train_data.shape[0], 784))
-x_val_data = x_val_data.reshape((x_val_data.shape[0], 784))
+# validation_split = np.random.rand(len(x_train)) < split_prob
+#
+# x_train_data = x_train[validation_split]
+# x_val_data = x_train[~validation_split]
+# y_train_data = y_train[:, validation_split]
+# y_val_data = y_train[:, ~validation_split]
+#
+# x_train_data = x_train_data.reshape((x_train_data.shape[0], 784))
+# x_val_data = x_val_data.reshape((x_val_data.shape[0], 784))
 x_test = x_test.reshape((x_test.shape[0], 784))
-layers_dims = [x_train_data.shape[1], 20, 7, 5, 10]
+layers_dims = [784, 20, 7, 5, 10]
 batch_size = 64
 
 # num_of_epochs, val_acc, train_acc, test_acc, batch_size_new, costs_per_epoch = run_Experiment(x_train_data, y_train_data,
@@ -87,15 +87,15 @@ batch_size = 64
 #                                                                                                y_test, batch_size, True)
 
 
-params, costs = L_layer_model(x_train_data.T,
-                              y_train_data,
+params, costs = L_layer_model(x_train,
+                              y_train,
                               layers_dims,
                               learning_rate=0.09,
                               num_iterations=200,
                               batch_size=32,
                               use_batchnorm=False)
-
-train_acc = Predict(x_train_data.T, y_train_data, params) * 100
+x_train = x_train.reshape((x_train.shape[0], 784))
+train_acc = Predict(x_train.T, y_train, params) * 100
 test_acc = Predict(x_test.T, y_test, params) * 100
 
 print('Train Accuracy {}%\nTest Accuracy: {}%'.format(train_acc, test_acc))
