@@ -10,7 +10,7 @@ def initialize_parameters(layer_dims):
     :return: parameters - a dictionary containing the initialized W and b parameters of each layer
         (W1…WL, b1…bL).
     """
-    parameters = {('W' + str(l)): np.random.randn(layer_dims[l], layer_dims[l - 1]) * 0.1 for l in
+    parameters = {('W' + str(l)): np.random.randn(layer_dims[l], layer_dims[l - 1]) * 0.01 for l in
                   range(1, len(layer_dims))}
     bias = {('b' + str(l)): np.zeros((layer_dims[l], 1)) for l in range(1, len(layer_dims))}
     parameters.update(bias)
@@ -32,20 +32,18 @@ def linear_forward(A, W, b):
     linear_cache = (A, W, b)
     return Z, linear_cache
 
-
-def softmax(Z):
+def softmax(X):
     """
 
-    :param Z: the linear component of the activation function
-    :return: A – the activations of the layer
-            activation_cache – returns Z, which will be useful for the backpropagation
+    :param X: prediction values
+    :return: normalize prediction values
     """
-    z = Z.T
+    z = X.T
     exps = np.exp(z - np.max(z))
     A = exps / np.sum(exps)
     A = A.T
 
-    return A, Z
+    return A
 
 
 def sigmoid(Z):
@@ -123,7 +121,6 @@ def L_model_forward(X, parameters, use_batchnorm=False):
         if use_batchnorm:
             apply_batchnorm(A)
         caches.append(cache)
-
     # AL, cache = linear_activation_forward(A,
     #                                       parameters['W' + str(n_layers)],
     #                                       parameters['b' + str(n_layers)],
@@ -153,7 +150,6 @@ def compute_cost(AL, Y):
     cost /= -m
     return cost
 
-
 def compute_cost_new(AL, Y):
     """
     Implement the cost function defined by equation.
@@ -170,7 +166,6 @@ def compute_cost_new(AL, Y):
     # return cost
     pass
 
-
 def apply_batchnorm(A):
     """
     performs batchnorm on the received activation values of a given layer.
@@ -186,7 +181,8 @@ def apply_batchnorm(A):
     A_norm = (A - mu) / np.sqrt(var + np.exp(-8))
     NA = gamma * A_norm + beta
 
-    return NA
+    cache = A, A_norm, mu, var, gamma, beta
+    return NA, cache
 
 
 def Linear_backward(dZ, cache):
@@ -233,7 +229,6 @@ def linear_activation_backward(dA, cache, activation='relu'):
 
     return Linear_backward(dZ, linear_cache)
 
-
 def softmax_backward(dA, activation_cache):
     """
        Implements backward propagation for a softamx unit
@@ -243,7 +238,6 @@ def softmax_backward(dA, activation_cache):
        :return: dZ – gradient of the cost with respect to Z
        """
     pass
-
 
 def relu_backward(dA, activation_cache):
     """
@@ -291,9 +285,10 @@ def L_model_backward(AL, Y, caches):
     Grads['dA' + str(L)], Grads['dW' + str(L)], Grads['db' + str(L)] = linear_activation_backward(dAL,
                                                                                                   cache,
                                                                                                   activation='sigmoid')
+
     # Grads['dA' + str(L)], Grads['dW' + str(L)], Grads['db' + str(L)] = linear_activation_backward(dAL,
     #                                                                                               cache,
-    #                                                                                               activation='softmax')
+    #
     for l in reversed(range(L - 1)):
         cache = caches[l]
         dAL = Grads['dA' + str(l + 2)]
@@ -316,7 +311,6 @@ def Update_parameters(parameters, grads, learning_rate=0.001):
     new_parameters = {key: value - learning_rate * grads['d' + key] for (key, value) in parameters.items()}
     return new_parameters
 
-
 def val_split(X, Y, split_prob=0.8):
     validation_split = np.random.rand(len(X)) < split_prob
 
@@ -327,8 +321,7 @@ def val_split(X, Y, split_prob=0.8):
 
     x_train_data = x_train_data.reshape((x_train_data.shape[0], 784))
     x_val_data = x_val_data.reshape((x_val_data.shape[0], 784))
-    return x_train_data.T, y_train_data, x_val_data, y_val_data
-
+    return x_train_data.T, y_train_data, x_val_data.T, y_val_data
 
 def L_layer_model(X, Y, layer_dims, learning_rate=0.009, num_iterations=300, batch_size=32, use_batchnorm=False):
     """
@@ -360,6 +353,7 @@ def L_layer_model(X, Y, layer_dims, learning_rate=0.009, num_iterations=300, bat
     while not early_stop:
         num_of_epoches += 1
         for i in range(num_iterations):
+            print("num of iter" + str(i))
             minibatches = mini_batches_split(X, Y, batch_size)
             for minibatch in minibatches:
                 if early_stop:
@@ -371,17 +365,17 @@ def L_layer_model(X, Y, layer_dims, learning_rate=0.009, num_iterations=300, bat
                 parameters = Update_parameters(parameters, grads, learning_rate)
 
                 acc = Predict(val_X, val_Y, parameters) * 100
-                if acc + 1e-8 < curr_acc:
+                if acc  < curr_acc + 1e-8:
                     no_improve_count += 1
                 else:
                     curr_acc = acc
                     no_improve_count = 0
-                if no_improve_count == 100:
+                if no_improve_count == 100000:
                     early_stop = True
 
                 if num_of_training_steps % 100 == 0:
                     cost = compute_cost(AL, y)
-                    # acc = Predict(x, y, parameters) * 100
+                    # acc = Predict(val_X, val_Y, parameters) * 100
                     costs.append(cost)
                     print(f"Cost after num_of_training_steps {num_of_training_steps}: {cost}, {curr_acc}%")
             if early_stop:
@@ -390,7 +384,7 @@ def L_layer_model(X, Y, layer_dims, learning_rate=0.009, num_iterations=300, bat
     return parameters, costs, num_of_epoches, num_of_training_steps, curr_acc
 
 
-def Predict(X, Y, parameters, use_batchnorm=False):
+def Predict(X, Y, parameters):
     """
     The function receives an input data and the true labels and calculates the accuracy of
     the trained neural network on the data.
@@ -402,7 +396,7 @@ def Predict(X, Y, parameters, use_batchnorm=False):
                 percentage of the samples for which the correct label receives over 50% of the
                 confidence score). Use the softmax function to normalize the output values.
     """
-    AL, _ = L_model_forward(X, parameters, use_batchnorm)
+    AL, _ = L_model_forward(X, parameters)
     soft_AL = softmax(AL)
     preds = np.argmax(soft_AL, axis=0)
     Y = np.argmax(Y, axis=0)
