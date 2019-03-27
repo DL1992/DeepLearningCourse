@@ -2,7 +2,6 @@ from Assignment1.DNN import *
 import numpy as np
 
 
-
 def load_data():
     x_train = np.load('x_train.npy')
     x_test = np.load('x_test.npy')
@@ -47,16 +46,17 @@ x_test = x_test.reshape((x_test.shape[0], 784))
 layers_dims = [784, 20, 7, 5, 10]
 batch_size = 64
 
-
-params, costs,_,_,_ = L_layer_model(x_train,
+params, costs, _, _, _ = L_layer_model(x_train,
                               y_train,
                               layers_dims,
                               learning_rate=0.1,
-                              num_iterations=200,
+                              num_iterations=1000,
                               batch_size=64,
-                              use_batchnorm=False)
+                              use_batchnorm=True)
+
 x_train = x_train.reshape((x_train.shape[0], 784))
 train_acc = Predict(x_train.T, y_train, params) * 100
 test_acc = Predict(x_test.T, y_test, params) * 100
 
 print('Train Accuracy {}%\nTest Accuracy: {}%'.format(train_acc, test_acc))
+
