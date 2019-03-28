@@ -102,5 +102,5 @@ def run_experiment(x, y, layers_dims, val_split_prob=0.8, learning_rate=0.009, n
 
 x_test = x_test.reshape((x_test.shape[0], 784))
 layers_dims = [784, 20, 7, 5, 10]
-run_experiment(x_train, y_train, layers_dims,learning_rate=0.1, use_batchnorm=True)
-run_experiment(x_train, y_train, layers_dims,learning_rate=0.1, use_batchnorm=False)
+run_experiment(x_train, y_train, layers_dims, use_batchnorm=True)
+run_experiment(x_train, y_train, layers_dims, use_batchnorm=False)
