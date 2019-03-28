@@ -2,7 +2,6 @@ from Assignment1.DNN import *
 import numpy as np
 import matplotlib.pyplot as plt
 
-
 # from keras.datasets import mnist
 
 def load_data():
@@ -10,6 +9,7 @@ def load_data():
     x_test = np.load('x_test.npy')
     y_train = np.load('y_train.npy')
     y_test = np.load('y_test.npy')
+    # x_train, y_train, x_test, y_test = mnist.load()
 
     y_new = np.zeros((10, y_train.shape[0]))
     cnt = 0
