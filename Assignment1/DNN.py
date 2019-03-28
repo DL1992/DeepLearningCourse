@@ -4,6 +4,7 @@ import math
 
 def initialize_parameters(layer_dims):
     """
+    Initialize parameters for the network. we normalize the parameters using sqrt of layer dim for faster convergence.
     :param layer_dims: an array of the dimensions of each layer in the network (layer 0 is the size of the
             flattened input, layer L is the output sigmoid)
     :return: parameters - a dictionary containing the initialized W and b parameters of each layer
@@ -30,6 +31,7 @@ def linear_forward(A, W, b):
     Z = W @ A + b
     linear_cache = (A, W, b)
     return Z, linear_cache
+
 
 def softmax(X):
     """
@@ -202,7 +204,9 @@ def linear_activation_backward(dA, cache, activation='relu'):
 
 def softmax_backward(dA, activation_cache):
     """
-       Implements backward propagation for a softamx unit
+       Implements backward propagation for a softamx unit.
+       this is implemented into the L model backward.
+
        :param dA: the post-activation gradient
        :param activation_cache: contains Z (stored during the forward propagation)
        :return: dZ – gradient of the cost with respect to Z
@@ -274,6 +278,13 @@ def Update_parameters(parameters, grads, learning_rate=0.001):
 
 
 def val_split(X, Y, split_prob=0.8):
+    """
+    split dataset into train and validation sets.
+    :param X: the input data, a numpy array of shape (height*width , number_of_examples).
+    :param Y: the “real” labels of the data, a vector of shape (num_of_classes, number of examples).
+    :param split_prob: the split ratio od validation and train
+    :return: a tuple (x_train_data.T, y_train_data, x_val_data.T, y_val_data)
+    """
     validation_split = np.random.rand(len(X)) < split_prob
 
     x_train_data = X[validation_split]
@@ -286,7 +297,8 @@ def val_split(X, Y, split_prob=0.8):
     return x_train_data.T, y_train_data, x_val_data.T, y_val_data
 
 
-def L_layer_model(X, Y, layer_dims, learning_rate=0.009, num_iterations=300, batch_size=32, use_batchnorm=False):
+def L_layer_model(X, Y, layer_dims, val_split_prob=0.8, learning_rate=0.009, num_iterations=300, batch_size=32,
+                  use_batchnorm=False):
     """
     Implements a L-layer neural network. All layers but the last should have the ReLU
     activation function, and the final layer will apply the sigmoid activation function. The
@@ -297,6 +309,8 @@ def L_layer_model(X, Y, layer_dims, learning_rate=0.009, num_iterations=300, bat
     :param learning_rate: the learning rate used to update the parameters (the “alpha”).
     :param num_iterations: the number of iteration to train the model for.
     :param batch_size: the number of examples in a single training batch.
+    :param val_split_prob: the train-validation split.
+    :param use_batchnorm: whether or not to use batch norm in the ann.
     :return: a tuple(parameters,costs) -
             parameters – the parameters learnt by the system during the training (the same parameters that were updated
             in the update_parameters function).
@@ -307,7 +321,7 @@ def L_layer_model(X, Y, layer_dims, learning_rate=0.009, num_iterations=300, bat
     num_of_training_steps = 0
     no_improve_count = 0
     curr_acc = 0.0
-    X, Y, x_val, y_val = val_split(X, Y)
+    X, Y, x_val, y_val = val_split(X, Y, val_split_prob)
 
     costs = []
     parameters = initialize_parameters(layer_dims)
@@ -315,7 +329,7 @@ def L_layer_model(X, Y, layer_dims, learning_rate=0.009, num_iterations=300, bat
     while True:
         num_of_epochs += 1
         for i in range(num_iterations):
-            print("num of iter" + str(i))
+            print("num of iteration: " + str(i))
             minibatches = mini_batches_split(X, Y, batch_size)
             for minibatch in minibatches:
 
@@ -326,7 +340,7 @@ def L_layer_model(X, Y, layer_dims, learning_rate=0.009, num_iterations=300, bat
                 grads = L_model_backward(AL, y, caches)
                 parameters = Update_parameters(parameters, grads, learning_rate)
 
-                acc = Predict(x_val, y_val, parameters) * 100
+                acc = Predict(x_val, y_val, parameters, use_batchnorm=use_batchnorm) * 100
 
                 if acc < curr_acc + 0.5:
                     no_improve_count += 1
@@ -335,27 +349,28 @@ def L_layer_model(X, Y, layer_dims, learning_rate=0.009, num_iterations=300, bat
                     no_improve_count = 0
 
                 if no_improve_count == 1000:
-                    return parameters, costs, num_of_epochs, num_of_training_steps, curr_acc
+                    return parameters, costs, num_of_epochs, num_of_training_steps, curr_acc, i
 
                 if num_of_training_steps % 100 == 0:
                     cost = compute_cost(AL, y)
-                    acc = Predict(x_val, y_val, parameters) * 100
-                    costs.append(cost)
-                    print(f"Cost after num_of_training_steps {num_of_training_steps}: {cost}, {acc}%")
+                    acc = Predict(x_val, y_val, parameters, use_batchnorm=use_batchnorm) * 100
+                    costs.append((cost, num_of_training_steps, acc))
+                    print(f"Cost after {num_of_training_steps} training steps: {cost:.4f}, accuracy: {acc:.2f}%")
 
 
-def Predict(X, Y, parameters):
+def Predict(X, Y, parameters, use_batchnorm=False):
     """
     The function receives an input data and the true labels and calculates the accuracy of
     the trained neural network on the data.
     :param X: the input data, a numpy array of shape (height*width, number_of_examples)
     :param Y: the “real” labels of the data, a vector of shape (num_of_classes, number of examples)
     :param parameters: a python dictionary containing the DNN architecture’s parameters
+    :param use_batchnorm: whether or not to use batch norm in the ann.
     :return: accuracy – the accuracy measure of the neural net on the provided data (i.e. the
                 percentage of the samples for which the correct label receives over 50% of the
                 confidence score). Use the softmax function to normalize the output values.
     """
-    AL, _ = L_model_forward(X, parameters)
+    AL, _ = L_model_forward(X, parameters, use_batchnorm=use_batchnorm)
     preds = np.argmax(AL, axis=0)
     Y = np.argmax(Y, axis=0)
     acc = (preds - Y == 0).sum()
